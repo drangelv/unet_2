@@ -1,0 +1,189 @@
+#!/usr/bin/env python
+"""
+Script principal para entrenamiento del modelo UNet3
+"""
+
+import os
+import argparse
+import torch
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+import multiprocessing
+
+from config.config import (MODEL_CONFIG, TRAINING_CONFIG, DATA_CONFIG, 
+                         METRICS_CONFIG, HARDWARE_CONFIG, LOGGING_CONFIG)
+from src.models.unet3 import UNet3
+from src.data.dataset import HeatmapDataModule
+from src.visualization.visualizer import visualize_sample, visualize_prediction
+from src.utils.system_info import print_system_info
+import sys
+sys.path.append('.')
+
+def setup_hardware():
+    """Configura el hardware según la configuración y disponibilidad"""
+    # Verificar MPS (Apple Silicon)
+    if HARDWARE_CONFIG['device'] == 'mps':
+        if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+            print("Usando aceleración MPS (Apple Silicon)")
+            HARDWARE_CONFIG['device'] = 'mps'
+            return "mps"
+        else:
+            print("MPS no disponible, usando CPU")
+            HARDWARE_CONFIG['device'] = 'cpu'
+            return "cpu"
+    
+    # Verificar CUDA (NVIDIA GPU)
+    elif HARDWARE_CONFIG['device'] == 'cuda':
+        if torch.cuda.is_available():
+            cuda_id = HARDWARE_CONFIG['gpu_id']
+            if cuda_id >= torch.cuda.device_count():
+                print(f"GPU {cuda_id} no disponible, usando GPU 0")
+                HARDWARE_CONFIG['gpu_id'] = 0
+            print(f"Usando GPU NVIDIA: {torch.cuda.get_device_name(HARDWARE_CONFIG['gpu_id'])}")
+            return f"cuda:{HARDWARE_CONFIG['gpu_id']}"
+        else:
+            print("CUDA no disponible, usando CPU")
+            HARDWARE_CONFIG['device'] = 'cpu'
+            return "cpu"
+    
+    # CPU como fallback
+    else:
+        print("Usando CPU")
+        HARDWARE_CONFIG['device'] = 'cpu'
+        return "cpu"
+
+def main():
+    # Configurar argumentos de línea de comandos
+    parser = argparse.ArgumentParser(description='Entrenamiento de UNet3 para predicción de heatmaps')
+    parser.add_argument('--config', type=str, default=None,
+                       help='Ruta a archivo de configuración alternativo')
+    parser.add_argument('--visualize_only', action='store_true',
+                       help='Solo visualizar muestras sin entrenar')
+    parser.add_argument('--load_model', type=str, default='',
+                       help='Ruta a modelo guardado para evaluación')
+    args = parser.parse_args()
+
+    # Configurar hardware
+    device = setup_hardware()
+    print(f"Usando dispositivo: {device}")
+
+    # Imprimir información del sistema
+    print_system_info()
+
+    # Crear directorios necesarios
+    os.makedirs(LOGGING_CONFIG['save_dir'], exist_ok=True)
+    os.makedirs(LOGGING_CONFIG['log_dir'], exist_ok=True)
+
+    # Crear data module
+    data_module = HeatmapDataModule(
+        data_path=DATA_CONFIG['data_path'],
+        batch_size=TRAINING_CONFIG['batch_size'],
+        input_frames=MODEL_CONFIG['input_frames'],
+        output_frames=MODEL_CONFIG['output_frames'],
+        train_ratio=DATA_CONFIG['train_split'],
+        val_ratio=DATA_CONFIG['val_split']
+    )
+
+    # Solo visualizar si se solicita
+    if args.visualize_only:
+        data_module.setup()
+        print("\nVisualizando muestras del dataset:")
+        for i in range(3):
+            visualize_sample(data_module.train_dataset, i, 
+                           os.path.join(LOGGING_CONFIG['log_dir'], "visualizaciones"))
+        return
+
+    # Cargar modelo existente o crear nuevo
+    if args.load_model:
+        print(f"\nCargando modelo desde: {args.load_model}")
+        model = UNet3.load_from_checkpoint(args.load_model)
+        
+        # Realizar predicciones
+        data_module.setup()
+        print("\nGenerando predicciones:")
+        for i in range(5):
+            visualize_prediction(
+                model, 
+                data_module.test_dataset, 
+                i,
+                os.path.join(LOGGING_CONFIG['log_dir'], "predicciones")
+            )
+        return
+
+    # Crear modelo nuevo
+    model = UNet3(
+        n_channels=MODEL_CONFIG['input_frames'],
+        n_classes=MODEL_CONFIG['output_frames'],
+        bilinear=MODEL_CONFIG['bilinear'],
+        learning_rate=TRAINING_CONFIG['learning_rate']
+    )
+
+    # Configurar callbacks
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=os.path.join(LOGGING_CONFIG['save_dir'], "checkpoints"),
+        filename="{epoch}-{val_loss:.4f}",
+        save_top_k=LOGGING_CONFIG['save_top_k'],
+        monitor="val_loss",
+        mode="min"
+    )
+
+    early_stop_callback = EarlyStopping(
+        monitor="val_loss",
+        patience=TRAINING_CONFIG['early_stopping_patience'],
+        mode="min"
+    )
+
+    # Configurar trainer
+    trainer_config = {
+        'max_epochs': TRAINING_CONFIG['epochs'],
+        'callbacks': [checkpoint_callback, early_stop_callback],
+        'gradient_clip_val': TRAINING_CONFIG['gradient_clip_val'],
+        'accumulate_grad_batches': TRAINING_CONFIG['accumulate_grad_batches'],
+        'log_every_n_steps': LOGGING_CONFIG['log_every_n_steps'],
+        'default_root_dir': LOGGING_CONFIG['log_dir']
+    }
+
+    # Configuración específica según el dispositivo
+    if HARDWARE_CONFIG['device'] == 'cuda':
+        trainer_config.update({
+            'accelerator': 'cuda',
+            'devices': [HARDWARE_CONFIG['gpu_id']]
+        })
+    elif HARDWARE_CONFIG['device'] == 'mps':
+        trainer_config.update({
+            'accelerator': 'mps',
+            'devices': 1
+        })
+    else:
+        trainer_config.update({
+            'accelerator': 'cpu'
+        })
+
+    trainer = pl.Trainer(**trainer_config)
+
+    # Entrenar
+    print("\nIniciando entrenamiento:")
+    trainer.fit(model, data_module)
+
+    # Evaluar
+    print("\nEvaluando en conjunto de test:")
+    trainer.test(model, data_module)
+
+    # Guardar algunas predicciones
+    print("\nGenerando visualizaciones finales:")
+    data_module.setup()
+    for i in range(5):
+        visualize_prediction(
+            model, 
+            data_module.test_dataset, 
+            i,
+            os.path.join(LOGGING_CONFIG['log_dir'], "predicciones_finales")
+        )
+
+    print("\n¡Entrenamiento completado!")
+    print(f"Modelo guardado en: {LOGGING_CONFIG['save_dir']}")
+    print(f"Logs disponibles en: {LOGGING_CONFIG['log_dir']}")
+
+if __name__ == "__main__":
+    multiprocessing.set_start_method('spawn', force=True)
+    main()
