@@ -74,11 +74,12 @@ venv.bak/
 *.local
 local_settings.py
 
-# Dataset and model files (uncomment if you don't want to track these)
-# *.h5
-# *.pkl
-# *.pth
-# saved_models/
+# Dataset and model files
+inputs/
+*.h5
+*.pkl
+*.pth
+saved_models/
 
 # OS specific
 .DS_Store
