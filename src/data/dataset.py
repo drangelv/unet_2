@@ -113,8 +113,17 @@ class HeatmapDataModule(pl.LightningDataModule):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
+        
+        # Validar número de frames
+        if input_frames <= 0:
+            raise ValueError(f"input_frames debe ser positivo, se recibió: {input_frames}")
+        if output_frames <= 0:
+            raise ValueError(f"output_frames debe ser positivo, se recibió: {output_frames}")
+            
         self.input_frames = input_frames
         self.output_frames = output_frames
+        print(f"DataModule configurado con {input_frames} frames de entrada y {output_frames} frames de salida")
+        
         self.num_workers = num_workers
         self.train_ratio = train_ratio
         self.val_ratio = val_ratio

@@ -11,13 +11,18 @@ def setup_custom_cmap():
     """Configura un colormap personalizado para visualización de heatmaps"""
     import matplotlib.colors as mcolors
     
-    # Definir colores para el mapa
-    colors = ['#FFFFFF', '#A6F28F', '#3DEC3A', '#FFE985', '#FFA647',
-              '#F52C2C', '#BC0000', '#700000']
+    # Definir colores con transparencia
+    colors = [(0, 0, 0, 0),          # Transparente al inicio
+             (0, 0, 1, 0.7),        # Azul con 0.7 de alpha en el medio
+             (1, 0, 0, 0.7)]        # Rojo con 0.7 de alpha al final
+    positions = [0, 0.5, 1]
     
     # Crear colormap personalizado
-    n_bins = 100
-    custom_cmap = mcolors.LinearSegmentedColormap.from_list("custom", colors, N=n_bins)
+    custom_cmap = mcolors.LinearSegmentedColormap.from_list(
+        "TransparentBlueRed", 
+        list(zip(positions, colors)), 
+        N=100
+    )
     
     return custom_cmap
 
@@ -96,8 +101,12 @@ def visualize_prediction(model, dataset, index, save_dir="predicciones", show=Fa
     with torch.no_grad():
         prediction = model(inputs_batch)
     
-    # Mover a CPU
+    # Mover a CPU y desnormalizar si es necesario
     prediction = prediction.cpu().squeeze(0)
+    if prediction.max() <= 1.0:
+        prediction = prediction * 100.0
+        target = target * 100.0
+        inputs = inputs * 100.0
     
     # Desnormalizar si es necesario
     if inputs.max() <= 1.0:
@@ -106,27 +115,47 @@ def visualize_prediction(model, dataset, index, save_dir="predicciones", show=Fa
         prediction = prediction * 100.0
     
     # Configurar visualización
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    total_plots = 1 + len(prediction) + len(target)  # último input + predicciones + targets
+    timestamp_inicio = timestamps[-len(prediction)-1]
+    timestamp_fin = timestamps[-1]
+    
+    fig = plt.figure(figsize=(20, 8))
+    gs = plt.GridSpec(2, total_plots, height_ratios=[1, 1], hspace=0.3)
+    
     custom_cmap = setup_custom_cmap()
     
+    # Primer fila: Input + Predicciones
     # Último frame de entrada
-    im1 = axes[0].imshow(inputs[-1].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
-    axes[0].set_title(f'Último input\n{timestamps[-2]}')
-    axes[0].axis('off')
+    ax = plt.subplot(gs[0, 0])
+    im = ax.imshow(inputs[-1].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
+    ax.set_title(f'Input frame {len(inputs)}\n{timestamps[-len(prediction)-1]}')
+    ax.axis('off')
     
-    # Predicción
-    im2 = axes[1].imshow(prediction[0].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
-    axes[1].set_title(f'Predicción\n{timestamps[-1]}')
-    axes[1].axis('off')
+    # Predicciones
+    for i in range(len(prediction)):
+        ax = plt.subplot(gs[0, i+1])
+        im = ax.imshow(prediction[i].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
+        ax.set_title(f'Prediction {i+1}\n{timestamps[-len(prediction)+i]}')
+        ax.axis('off')
     
-    # Target
-    im3 = axes[2].imshow(target[0].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
-    axes[2].set_title(f'Target\n{timestamps[-1]}')
-    axes[2].axis('off')
+    # Segunda fila: Targets
+    for i in range(len(target)):
+        ax = plt.subplot(gs[1, i])
+        im = ax.imshow(target[i].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
+        ax.set_title(f'Target frame {i+1}\n{timestamps[-len(target)+i]}')
+        ax.axis('off')
     
-    # Barra de color común
-    plt.colorbar(im2, ax=axes.ravel().tolist(), orientation='horizontal',
-                 pad=0.01, fraction=0.05, label='Intensidad')
+    # Título general
+    plt.suptitle(f'Predicción para secuencia {timestamp_inicio} - {timestamp_fin}', 
+                y=1.05, fontsize=14)
+    
+    # Barra de color común, ajustada fuera del área de graficado
+    # Los valores [0.92, 0.15, 0.02, 0.7] representan [left, bottom, width, height]
+    # donde 0.92 asegura que el colorbar esté fuera del área de las gráficas
+    # y no se sobreponga con ninguna de ellas
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    cbar = plt.colorbar(im, cax=cbar_ax, orientation='vertical')
+    cbar.set_label('Intensidad (0-100)', fontsize=10)
     
     plt.tight_layout()
     plt.suptitle(f'Predicción para {timestamps[-1]}', fontsize=16)

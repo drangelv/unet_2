@@ -8,6 +8,12 @@ import pytorch_lightning as pl
 from ..metrics.metrics import calculate_metrics
 from config.config import MODEL_CONFIG, METRICS_CONFIG
 
+# Verificar configuración de frames
+assert MODEL_CONFIG['input_frames'] > 0, "El número de frames de entrada debe ser mayor que 0"
+assert MODEL_CONFIG['output_frames'] > 0, "El número de frames de salida debe ser mayor que 0"
+INPUT_FRAMES = MODEL_CONFIG['input_frames']
+OUTPUT_FRAMES = MODEL_CONFIG['output_frames']
+
 class DoubleConv(nn.Module):
     """Bloque de doble convolución con batch normalization"""
     def __init__(self, in_channels, out_channels, mid_channels=None):
@@ -88,6 +94,13 @@ class UNet3(pl.LightningModule):
                  bilinear=MODEL_CONFIG['bilinear'],
                  learning_rate=1e-3):
         super(UNet3, self).__init__()
+        
+        # Verificar que los parámetros coinciden con la configuración
+        if n_channels != MODEL_CONFIG['input_frames']:
+            print(f"Advertencia: n_channels ({n_channels}) no coincide con MODEL_CONFIG['input_frames'] ({MODEL_CONFIG['input_frames']})")
+        if n_classes != MODEL_CONFIG['output_frames']:
+            print(f"Advertencia: n_classes ({n_classes}) no coincide con MODEL_CONFIG['output_frames'] ({MODEL_CONFIG['output_frames']})")
+            
         self.save_hyperparameters()
         self.n_channels = n_channels
         self.n_classes = n_classes
