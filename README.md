@@ -68,20 +68,38 @@ TRAINING_CONFIG = {
 
 ## 🏃‍♂️ Uso
 
-### Entrenamiento
+### 1. Crear Dataset Trusted
+Primero, necesitas crear un dataset trusted a partir de los datos crudos. Puedes especificar el número de frames de entrada y salida:
+
 ```bash
-python train.py
+# Usando valores por defecto (12 frames entrada, 6 salida)
+python 01_create_dataset.py
+
+# Especificando número de frames
+python 01_create_dataset.py --input-frames 24 --output-frames 12
+
+# Especificando rutas personalizadas
+python 01_create_dataset.py --input-frames 8 --output-frames 4 --input-path datos/raw.h5 --output-path datos/processed.h5
 ```
 
-### Opciones de Entrenamiento
-- Visualizar muestras sin entrenar:
-```bash
-python train.py --visualize_only
-```
+### 2. Entrenamiento
+Una vez creado el dataset trusted, puedes entrenar el modelo:
 
-- Cargar modelo existente:
 ```bash
-python train.py --load_model path/to/model.ckpt
+# Usando configuración por defecto (desde config.py)
+python 02_train.py
+
+# Cambiar número de frames en tiempo de ejecución
+python 02_train.py --input-frames 24 --output-frames 12
+
+# Usar un dataset específico
+python 02_train.py --dataset inputs/mi_dataset_custom.h5
+
+# Visualizar muestras sin entrenar
+python 02_train.py --visualize_only
+
+# Cargar modelo existente para evaluación
+python 02_train.py --load_model path/to/model.ckpt
 ```
 
 ### Testing Interactivo
@@ -94,12 +112,14 @@ Usar el notebook `notebooks/model_testing.ipynb` para:
 ## 📁 Estructura del Proyecto
 ```
 tesis_unet_2/
+├── 01_create_dataset.py      # Script para crear dataset trusted
+├── 02_train.py              # Script principal de entrenamiento
 ├── config/
-│   └── config.py              # Configuración centralizada
+│   └── config.py            # Configuración centralizada
 ├── src/
 │   ├── data/
-│   │   ├── dataset.py        # Implementación del dataset
-│   │   └── split_registry.py # Registro de división de datos
+│   │   ├── dataset.py       # Dataset para datos crudos
+│   │   └── trusted_dataset.py # Dataset optimizado para datos procesados
 │   ├── metrics/
 │   │   └── metrics.py        # Métricas personalizadas
 │   ├── models/
@@ -108,8 +128,7 @@ tesis_unet_2/
 │       └── visualizer.py     # Visualización
 ├── notebooks/
 │   └── model_testing.ipynb   # Notebook para pruebas
-├── train.py                  # Script principal
-└── requirements.txt          # Dependencias
+├── requirements.txt          # Dependencias
 ```
 
 ## 📊 Métricas Implementadas

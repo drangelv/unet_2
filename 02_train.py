@@ -61,7 +61,24 @@ def main():
                        help='Solo visualizar muestras sin entrenar')
     parser.add_argument('--load_model', type=str, default='',
                        help='Ruta a modelo guardado para evaluación')
+    parser.add_argument('--input-frames', type=int, default=None,
+                       help='Número de frames de entrada (por defecto usa el valor de config.py)')
+    parser.add_argument('--output-frames', type=int, default=None,
+                       help='Número de frames de salida (por defecto usa el valor de config.py)')
+    parser.add_argument('--dataset', type=str, default=None,
+                       help='Ruta al dataset trusted a usar (por defecto usa el valor de config.py)')
     args = parser.parse_args()
+
+    # Actualizar configuración si se especificaron argumentos
+    if args.input_frames is not None:
+        MODEL_CONFIG['input_frames'] = args.input_frames
+    if args.output_frames is not None:
+        MODEL_CONFIG['output_frames'] = args.output_frames
+    if args.dataset is not None:
+        DATA_CONFIG['trusted_data_path'] = args.dataset
+    elif args.input_frames is not None or args.output_frames is not None:
+        # Si se cambió el número de frames pero no se especificó dataset, ajustar la ruta
+        DATA_CONFIG['trusted_data_path'] = f"inputs/data_trusted_{MODEL_CONFIG['input_frames']}x{MODEL_CONFIG['output_frames']}.h5"
 
     # Configurar hardware
     device = setup_hardware()
@@ -69,6 +86,10 @@ def main():
 
     # Imprimir información del sistema
     print_system_info()
+    print(f"\nConfiguración del modelo:")
+    print(f"- Frames de entrada: {MODEL_CONFIG['input_frames']}")
+    print(f"- Frames de salida: {MODEL_CONFIG['output_frames']}")
+    print(f"- Dataset: {DATA_CONFIG['trusted_data_path']}")
 
     # Crear directorios necesarios
     os.makedirs(LOGGING_CONFIG['save_dir'], exist_ok=True)
