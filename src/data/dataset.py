@@ -65,6 +65,7 @@ class HeatmapDataset(Dataset):
         start_idx = self.valid_indices[idx]
 
         # Cargar secuencia
+        # Aquí se carga la data cruda desde el archivo HDF5
         with h5py.File(self.file_path, "r") as h5_file:
             # Frames de entrada
             input_frames = []

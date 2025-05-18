@@ -13,7 +13,7 @@ import multiprocessing
 from config.config import (MODEL_CONFIG, TRAINING_CONFIG, DATA_CONFIG, 
                          METRICS_CONFIG, HARDWARE_CONFIG, LOGGING_CONFIG)
 from src.models.unet3 import UNet3
-from src.data.dataset import HeatmapDataModule
+from src.data.trusted_dataset import TrustedHeatmapDataModule
 from src.visualization.visualizer import visualize_sample, visualize_prediction
 from src.utils.system_info import print_system_info
 import sys
@@ -75,11 +75,9 @@ def main():
     os.makedirs(LOGGING_CONFIG['log_dir'], exist_ok=True)
 
     # Crear data module
-    data_module = HeatmapDataModule(
-        data_path=DATA_CONFIG['data_path'],
+    data_module = TrustedHeatmapDataModule(
+        data_path=DATA_CONFIG['trusted_data_path'],
         batch_size=TRAINING_CONFIG['batch_size'],
-        input_frames=MODEL_CONFIG['input_frames'],
-        output_frames=MODEL_CONFIG['output_frames'],
         train_ratio=DATA_CONFIG['train_split'],
         val_ratio=DATA_CONFIG['val_split']
     )

@@ -29,7 +29,8 @@ TRAINING_CONFIG = {
 
 # Configuración de Datos
 DATA_CONFIG = {
-    'data_path': "/inputs/combined_data_final.h5",
+    'data_path': "/inputs/combined_data_final.h5",  # Dataset crudo
+    'trusted_data_path': "/inputs/data_trusted_12x6.h5",  # Dataset procesado
     'train_split': 0.7,
     'val_split': 0.15,
     'test_split': 0.15,
