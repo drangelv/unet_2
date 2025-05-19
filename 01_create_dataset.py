@@ -7,8 +7,29 @@ import numpy as np
 from datetime import datetime, timedelta
 from tqdm import tqdm
 import argparse
+#python3 01_create_dataset.py --input-frames 12 --output-frames 6 --months 6
+def check_center_activity(frame, threshold=0.2):
+    """
+    Verifica si el cuadrado central del frame tiene suficiente actividad
+    
+    Args:
+        frame (numpy.ndarray): Frame de 128x128
+        threshold (float): Porcentaje mínimo de píxeles activos requerido (0-1)
+        
+    Returns:
+        bool: True si cumple el criterio, False en caso contrario
+    """
+    # Extraer región central (64x64)
+    center_region = frame[31:96, 31:96]
+    
+    # Calcular porcentaje de píxeles activos
+    active_pixels = np.sum(center_region > 0)
+    total_pixels = 64 * 64
+    active_ratio = active_pixels / total_pixels
+    
+    return active_ratio >= threshold
 
-def filter_last_n_months(keys_list, n_months=3):
+def filter_last_n_months(keys_list, n_months=12):
     """
     Filtra los timestamps para mantener solo los últimos n meses
     
@@ -37,7 +58,7 @@ def filter_last_n_months(keys_list, n_months=3):
     
     return filtered_keys
 
-def create_trusted_dataset(input_file, output_file, input_frames=12, output_frames=6):
+def create_trusted_dataset(input_file, output_file, input_frames=12, output_frames=6, n_months=3):
     """
     Crea un dataset trusted con secuencias de 12 frames de entrada y 6 de salida
     
@@ -46,6 +67,7 @@ def create_trusted_dataset(input_file, output_file, input_frames=12, output_fram
         output_file (str): Ruta donde guardar el dataset trusted
         input_frames (int): Número de frames de entrada (default: 12)
         output_frames (int): Número de frames de salida (default: 6)
+        n_months (int): Número de meses de datos a incluir (default: 3)
     """
     print(f"Creando dataset trusted {input_frames}x{output_frames}...")
     
@@ -58,9 +80,21 @@ def create_trusted_dataset(input_file, output_file, input_frames=12, output_fram
         # Filtrar por últimos 3 meses
         keys_list = filter_last_n_months(keys_list, n_months=3)
         
-        # Calcular número de secuencias válidas
-        n_sequences = len(keys_list) - (input_frames + output_frames - 1)
-        print(f"Se crearán {n_sequences} secuencias válidas")
+        # Verificar secuencias válidas
+        valid_sequences = []
+        n_total = len(keys_list) - (input_frames + output_frames - 1)
+        
+        print("Verificando secuencias válidas...")
+        for seq_idx in tqdm(range(n_total), desc="Verificando actividad central"):
+            # Verificar frame predictor (último frame de entrada)
+            key = keys_list[seq_idx + input_frames - 1]
+            frame = h5_input[key][:]
+            
+            if check_center_activity(frame, threshold=0.2):
+                valid_sequences.append(seq_idx)
+        
+        print(f"Secuencias totales: {n_total}")
+        print(f"Secuencias válidas: {len(valid_sequences)} ({len(valid_sequences)/n_total*100:.1f}%)")
         
         # Crear archivo de salida
         with h5py.File(output_file, "w") as h5_output:
@@ -76,7 +110,7 @@ def create_trusted_dataset(input_file, output_file, input_frames=12, output_fram
             h5_output.attrs['date_range'] = f"{keys_list[0]} to {keys_list[-1]}"
             
             # Crear secuencias
-            for seq_idx in tqdm(range(n_sequences), desc="Creando secuencias"):
+            for seq_idx in tqdm(valid_sequences, desc="Creando secuencias"):
                 # Obtener frames de entrada
                 input_frames_data = []
                 input_timestamps = []
@@ -125,16 +159,18 @@ if __name__ == "__main__":
                       help='Ruta al archivo H5 crudo (default: inputs/combined_data_final.h5)')
     parser.add_argument('--output-path', type=str, default="inputs/data_trusted_12x6.h5",
                       help='Ruta donde guardar el dataset trusted')
+    parser.add_argument('--months', type=int, default=3,
+                      help='Número de meses de datos a incluir (default: 3)')
     args = parser.parse_args()
 
-    # Ajustar ruta de salida según los frames especificados
-    if args.output_path == "inputs/data_trusted_12x6.h5":
-        args.output_path = f"inputs/data_trusted_{args.input_frames}x{args.output_frames}.h5"
+    # Usar nombre fijo para el dataset trusted
+    args.output_path = "inputs/data_trusted_12x6.h5"
     
     # Crear dataset trusted
     create_trusted_dataset(
         input_file=args.input_path,
         output_file=args.output_path,
         input_frames=args.input_frames,
-        output_frames=args.output_frames
+        output_frames=args.output_frames,
+        n_months=args.months
     )

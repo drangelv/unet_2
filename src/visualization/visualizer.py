@@ -7,6 +7,24 @@ import numpy as np
 import torch
 from datetime import datetime
 
+def format_timestamp(timestamp):
+    """Formatea un timestamp a formato yyyy/mm/dd hh:mm"""
+    try:
+        # Intentar diferentes formatos de entrada
+        formats = ['%Y_%m_%d_%H_%M_%S', '%Y%m%d%H%M', '%Y_%m_%d_%H_%M']
+        for fmt in formats:
+            try:
+                dt = datetime.strptime(timestamp, fmt)
+                return dt.strftime('%Y/%m/%d %H:%M')
+            except ValueError:
+                continue
+        # Si ningún formato coincide, intentar limpiar el string
+        cleaned = timestamp.replace('_', '')
+        dt = datetime.strptime(cleaned[:12], '%Y%m%d%H%M')
+        return dt.strftime('%Y/%m/%d %H:%M')
+    except Exception:
+        return timestamp
+
 def setup_custom_cmap():
     """Configura un colormap personalizado para visualización de heatmaps"""
     import matplotlib.colors as mcolors
@@ -52,12 +70,12 @@ def visualize_sample(dataset, index, save_dir="visualizaciones", show=False):
     # Mostrar frames de entrada
     for i in range(min(inputs.shape[0], n_cols-1)):
         im = axes[i].imshow(inputs[i].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
-        axes[i].set_title(f'Input {i+1}\n{timestamps[i]}')
+        axes[i].set_title(f'Input {i+1}\n{format_timestamp(timestamps[i])}')
         axes[i].axis('off')
     
     # Mostrar frame objetivo
     im = axes[-1].imshow(target[0].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
-    axes[-1].set_title(f'Target\n{timestamps[-1]}')
+    axes[-1].set_title(f'Target\n{format_timestamp(timestamps[-1])}')
     axes[-1].axis('off')
     
     # Barra de color común
@@ -108,58 +126,74 @@ def visualize_prediction(model, dataset, index, save_dir="predicciones", show=Fa
         target = target * 100.0
         inputs = inputs * 100.0
     
-    # Desnormalizar si es necesario
-    if inputs.max() <= 1.0:
-        inputs = inputs * 100.0
-        target = target * 100.0
-        prediction = prediction * 100.0
+    # Función helper para dibujar el rectángulo central
+    def draw_central_rectangle(ax, image):
+        height, width = image.shape
+        center_y, center_x = height // 2, width // 2
+        rect_size = 32 // 2  # La mitad del tamaño del rectángulo (32x32)
+        rect = plt.Rectangle((center_x - rect_size, center_y - rect_size),
+                          32, 32, fill=False, color='black', linewidth=1)
+        ax.add_patch(rect)
     
     # Configurar visualización
-    total_plots = 1 + len(prediction) + len(target)  # último input + predicciones + targets
-    timestamp_inicio = timestamps[-len(prediction)-1]
-    timestamp_fin = timestamps[-1]
+    n_rows = 4  # 2 filas para inputs, 1 para ground truth, 1 para predicciones
+    n_cols = 6  # 6 columnas para cada fila
     
-    fig = plt.figure(figsize=(20, 8))
-    gs = plt.GridSpec(2, total_plots, height_ratios=[1, 1], hspace=0.3)
+    # Crear figura con espacio extra a la derecha para la colorbar
+    fig = plt.figure(figsize=(22, 12))  # Aumentado el alto para 4 filas
     
+    # Crear grid para los subplots, dejando espacio para la colorbar
+    gs = plt.GridSpec(n_rows, n_cols + 1, width_ratios=[1]*n_cols + [0.2],
+                     left=0.05, right=0.95, bottom=0.05, top=0.92,
+                     wspace=0.2, hspace=0.4)
+    
+    # Configurar colormap
     custom_cmap = setup_custom_cmap()
     
-    # Primer fila: Input + Predicciones
-    # Último frame de entrada
-    ax = plt.subplot(gs[0, 0])
-    im = ax.imshow(inputs[-1].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
-    ax.set_title(f'Input frame {len(inputs)}\n{timestamps[-len(prediction)-1]}')
-    ax.axis('off')
+    # Configurar el título principal
+    last_input_ts = format_timestamp(timestamps[-1])
+    plt.suptitle(f'Predicción para {last_input_ts}', y=1.02, fontsize=14)
     
-    # Predicciones
-    for i in range(len(prediction)):
-        ax = plt.subplot(gs[0, i+1])
-        im = ax.imshow(prediction[i].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
-        ax.set_title(f'Prediction {i+1}\n{timestamps[-len(prediction)+i]}')
+    # Mostrar frames de entrada (primeros 6)
+    for i in range(6):
+        ax = fig.add_subplot(gs[0, i])
+        im = ax.imshow(inputs[i].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
+        draw_central_rectangle(ax, inputs[i].numpy())
+        ax.set_title(f'Input {i+1}\n{format_timestamp(timestamps[i])}')
         ax.axis('off')
     
-    # Segunda fila: Targets
-    for i in range(len(target)):
-        ax = plt.subplot(gs[1, i])
+    # Mostrar frames de entrada (últimos 6)
+    for i in range(6, 12):
+        ax = fig.add_subplot(gs[1, i-6])
+        im = ax.imshow(inputs[i].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
+        draw_central_rectangle(ax, inputs[i].numpy())
+        ax.set_title(f'Input {i+1}\n{format_timestamp(timestamps[i])}')
+        ax.axis('off')
+    
+    # Añadir líneas punteadas horizontales
+    fig.add_artist(plt.Line2D([0.05, 0.90], [0.51, 0.51], color='white', linestyle='--', transform=fig.transFigure))
+    fig.add_artist(plt.Line2D([0.05, 0.90], [0.26, 0.26], color='white', linestyle='--', transform=fig.transFigure))
+    
+    # Mostrar frames de ground truth
+    for i in range(6):
+        ax = fig.add_subplot(gs[2, i])
         im = ax.imshow(target[i].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
-        ax.set_title(f'Target frame {i+1}\n{timestamps[-len(target)+i]}')
+        draw_central_rectangle(ax, target[i].numpy())
+        ax.set_title(f'Ground Truth {i+1}\n{format_timestamp(timestamps[12+i])}')
         ax.axis('off')
     
-    # Título general
-    plt.suptitle(f'Predicción para secuencia {timestamp_inicio} - {timestamp_fin}', 
-                y=1.05, fontsize=14)
+    # Mostrar frames de predicción
+    for i in range(6):
+        ax = fig.add_subplot(gs[3, i])
+        im = ax.imshow(prediction[i].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
+        draw_central_rectangle(ax, prediction[i].numpy())
+        ax.set_title(f'Prediction {i+1}\n{format_timestamp(timestamps[12+i])}')
+        ax.axis('off')
     
-    # Barra de color común, ajustada fuera del área de graficado
-    # Los valores [0.92, 0.15, 0.02, 0.7] representan [left, bottom, width, height]
-    # donde 0.92 asegura que el colorbar esté fuera del área de las gráficas
-    # y no se sobreponga con ninguna de ellas
-    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    # Añadir colorbar en la última columna del GridSpec
+    cbar_ax = fig.add_subplot(gs[:, -1])
     cbar = plt.colorbar(im, cax=cbar_ax, orientation='vertical')
     cbar.set_label('Intensidad (0-100)', fontsize=10)
-    
-    plt.tight_layout()
-    plt.suptitle(f'Predicción para {timestamps[-1]}', fontsize=16)
-    plt.subplots_adjust(top=0.85)
     
     # Guardar
     os.makedirs(save_dir, exist_ok=True)

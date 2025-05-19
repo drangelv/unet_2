@@ -46,13 +46,22 @@ class TrustedHeatmapDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
+        # Asegurar que idx esté dentro del rango válido
+        if idx >= len(self.valid_indices):
+            raise IndexError(f"Index {idx} out of range for dataset with {len(self.valid_indices)} samples")
+
+        # Obtener el índice real de la secuencia
         seq_idx = self.valid_indices[idx]
         seq_name = f"sequence_{seq_idx:05d}"
         
         # Cargar secuencia
         with h5py.File(self.file_path, "r") as h5_file:
+            inputs_group = h5_file['inputs']
+            if seq_name not in inputs_group:
+                raise KeyError(f"Sequence {seq_name} not found in dataset")
+            
             # Cargar frames
-            input_tensor = torch.tensor(h5_file['inputs'][seq_name][:], dtype=torch.float32)
+            input_tensor = torch.tensor(inputs_group[seq_name][:], dtype=torch.float32)
             target_tensor = torch.tensor(h5_file['targets'][seq_name][:], dtype=torch.float32)
             
             # Cargar timestamps
@@ -98,19 +107,28 @@ class TrustedHeatmapDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         """Prepara los conjuntos de datos"""
-        # Crear dataset completo temporal para obtener índices
-        full_dataset = TrustedHeatmapDataset(
-            file_path=self.data_path,
-            subset='full'
-        )
-        
-        # Dividir índices
-        indices = np.arange(len(full_dataset))
-        train_idx, temp_idx = train_test_split(
-            indices, 
-            train_size=self.train_ratio,
-            random_state=DATA_SPLIT_INFO['random_seed']
-        )
+        # Verificar cuántas secuencias hay en el dataset y cuáles existen
+        with h5py.File(self.data_path, "r") as h5_file:
+            n_sequences = len(h5_file['inputs'])
+            # Verificar qué secuencias existen realmente
+            existing_indices = []
+            for i in range(n_sequences):
+                seq_name = f"sequence_{i:05d}"
+                if seq_name in h5_file['inputs'] and \
+                   seq_name in h5_file['targets'] and \
+                   f"{seq_name}_input" in h5_file['timestamps'] and \
+                   f"{seq_name}_target" in h5_file['timestamps']:
+                    existing_indices.append(i)
+            
+            print(f"Dataset full creado con {len(existing_indices)} secuencias")
+
+            # Dividir índices solo de las secuencias que existen
+            indices = np.array(existing_indices)
+            train_idx, temp_idx = train_test_split(
+                indices, 
+                train_size=self.train_ratio,
+                random_state=DATA_SPLIT_INFO['random_seed']
+            )
         
         val_idx, test_idx = train_test_split(
             temp_idx,
@@ -120,7 +138,7 @@ class TrustedHeatmapDataModule(pl.LightningDataModule):
         
         # Registrar la división
         update_split_info(
-            total_samples=len(full_dataset),
+            total_samples=len(existing_indices),
             train_indices=train_idx,
             val_indices=val_idx,
             test_indices=test_idx

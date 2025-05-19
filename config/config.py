@@ -18,13 +18,13 @@ MODEL_CONFIG = {
 
 # Configuración de Entrenamiento
 TRAINING_CONFIG = {
-    'batch_size': 4,
-    'epochs': 3,
+    'batch_size': 2,
+    'epochs': 1,
     'learning_rate': 1e-3,
     'weight_decay': 1e-4,
     'early_stopping_patience': 8,
     'gradient_clip_val': 0.5,
-    'accumulate_grad_batches': 2,
+    'accumulate_grad_batches': 1,
 }
 
 # Configuración de Datos
