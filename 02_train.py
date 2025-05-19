@@ -10,14 +10,34 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 import multiprocessing
 
+import sys
+sys.path.append('.')
+
 from config.config import (MODEL_CONFIG, TRAINING_CONFIG, DATA_CONFIG, 
                          METRICS_CONFIG, HARDWARE_CONFIG, LOGGING_CONFIG)
 from src.models.unet3 import UNet3
+from src.models.last12 import Last12
 from src.data.trusted_dataset import TrustedHeatmapDataModule
 from src.visualization.visualizer import visualize_sample, visualize_prediction
 from src.utils.system_info import print_system_info
 import sys
 sys.path.append('.')
+
+def get_model(model_name):
+    """Retorna el modelo según el nombre especificado"""
+    if model_name == "unet3":
+        return UNet3(
+            n_channels=MODEL_CONFIG['input_frames'],
+            n_classes=MODEL_CONFIG['output_frames'],
+            bilinear=MODEL_CONFIG['bilinear']
+        )
+    elif model_name == "last12":
+        return Last12(
+            n_channels=MODEL_CONFIG['input_frames'],
+            n_outputs=MODEL_CONFIG['output_frames']
+        )
+    else:
+        raise ValueError(f"Modelo {model_name} no reconocido")
 
 def setup_hardware():
     """Configura el hardware según la configuración y disponibilidad"""
@@ -130,12 +150,7 @@ def main():
         return
 
     # Crear modelo nuevo
-    model = UNet3(
-        n_channels=MODEL_CONFIG['input_frames'],
-        n_classes=MODEL_CONFIG['output_frames'],
-        bilinear=MODEL_CONFIG['bilinear'],
-        learning_rate=TRAINING_CONFIG['learning_rate']
-    )
+    model = get_model(MODEL_CONFIG['model_name'])
 
     # Configurar callbacks
     checkpoint_callback = ModelCheckpoint(

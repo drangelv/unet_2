@@ -1,5 +1,7 @@
 """
-Configuración del entorno para el proyecto UNet de predicción de heatmaps
+Config# Configuración del Modelo
+MODEL_CONFIG = {
+    'model_name': 'unet3',  # Opciones: 'unet3', 'last12'ción del entorno para el proyecto UNet de predicción de heatmaps
 """
 
 # Configuración del Hardware
@@ -10,10 +12,11 @@ HARDWARE_CONFIG = {
 
 # Configuración del Modelo
 MODEL_CONFIG = {
+    'model_name': 'unet3',  # Opciones: 'unet3', 'unet4', 'last12'
     'input_frames': 12,     # Número de frames de entrada
-    'output_frames': 6,    # Número de frames de salida
-    'initial_filters': 48, # Número de filtros iniciales en UNet Original 48
-    'bilinear': True,     # Usar interpolación bilinear en upsampling
+    'output_frames': 6,     # Número de frames de salida
+    'initial_filters': 48,  # Número de filtros iniciales en UNet Original 48
+    'bilinear': True      # Usar interpolación bilinear en upsampling
 }
 
 # Configuración de Entrenamiento
