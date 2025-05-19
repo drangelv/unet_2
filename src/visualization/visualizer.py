@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from datetime import datetime
+from config.config import MODEL_CONFIG
 
 def format_timestamp(timestamp):
     """Formatea un timestamp a formato yyyy/mm/dd hh:mm"""
@@ -86,9 +87,10 @@ def visualize_sample(dataset, index, save_dir="visualizaciones", show=False):
     plt.suptitle(f'Muestra {index}', fontsize=16)
     plt.subplots_adjust(top=0.85)
     
-    # Guardar
-    os.makedirs(save_dir, exist_ok=True)
-    plt_filename = os.path.join(save_dir, f"sample_{index}.jpg")
+    # Crear subdirectorio con el nombre del modelo
+    model_save_dir = os.path.join(save_dir, MODEL_CONFIG['model_name'])
+    os.makedirs(model_save_dir, exist_ok=True)
+    plt_filename = os.path.join(model_save_dir, f"sample_{index}.jpg")
     plt.savefig(plt_filename, dpi=300, bbox_inches='tight')
     
     if show:

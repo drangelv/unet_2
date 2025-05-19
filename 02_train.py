@@ -21,8 +21,6 @@ from src.models.last12 import Last12
 from src.data.trusted_dataset import TrustedHeatmapDataModule
 from src.visualization.visualizer import visualize_sample, visualize_prediction
 from src.utils.system_info import print_system_info
-import sys
-sys.path.append('.')
 
 def get_model(model_name):
     """Retorna el modelo según el nombre especificado"""
@@ -118,9 +116,12 @@ def main():
     print(f"- Frames de salida: {MODEL_CONFIG['output_frames']}")
     print(f"- Dataset: {DATA_CONFIG['trusted_data_path']}")
 
-    # Crear directorios necesarios
-    os.makedirs(LOGGING_CONFIG['save_dir'], exist_ok=True)
-    os.makedirs(LOGGING_CONFIG['log_dir'], exist_ok=True)
+    # Crear directorios necesarios con nombre del modelo
+    model_name = MODEL_CONFIG['model_name']
+    save_dir = os.path.join(LOGGING_CONFIG['save_dir'], model_name)
+    log_dir = os.path.join(LOGGING_CONFIG['log_dir'], model_name)
+    os.makedirs(save_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
 
     # Crear data module
     data_module = TrustedHeatmapDataModule(
@@ -136,7 +137,7 @@ def main():
         print("\nVisualizando muestras del dataset:")
         for i in range(3):
             visualize_sample(data_module.train_dataset, i, 
-                           os.path.join(LOGGING_CONFIG['log_dir'], "visualizaciones"))
+                           os.path.join(log_dir, "visualizaciones"))
         return
 
     # Cargar modelo existente o crear nuevo
@@ -152,16 +153,16 @@ def main():
                 model, 
                 data_module.test_dataset, 
                 i,
-                os.path.join(LOGGING_CONFIG['log_dir'], "predicciones")
+                os.path.join(log_dir, "predicciones")
             )
         return
 
     # Crear modelo nuevo
-    model = get_model(MODEL_CONFIG['model_name'])
+    model = get_model(model_name)
 
     # Configurar callbacks
     checkpoint_callback = ModelCheckpoint(
-        dirpath=os.path.join(LOGGING_CONFIG['save_dir'], "checkpoints"),
+        dirpath=os.path.join(save_dir, "checkpoints"),
         filename="{epoch}-{val_loss:.4f}",
         save_top_k=LOGGING_CONFIG['save_top_k'],
         monitor="val_loss",
@@ -181,7 +182,7 @@ def main():
         'gradient_clip_val': TRAINING_CONFIG['gradient_clip_val'],
         'accumulate_grad_batches': TRAINING_CONFIG['accumulate_grad_batches'],
         'log_every_n_steps': LOGGING_CONFIG['log_every_n_steps'],
-        'default_root_dir': LOGGING_CONFIG['log_dir']
+        'default_root_dir': log_dir
     }
 
     # Configuración específica según el dispositivo
@@ -218,7 +219,7 @@ def main():
             model, 
             data_module.test_dataset, 
             i,
-            os.path.join(LOGGING_CONFIG['log_dir'], "predicciones_finales")
+            os.path.join(log_dir, "predicciones_finales")
         )
 
     print("\n¡Entrenamiento completado!")

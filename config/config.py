@@ -1,5 +1,3 @@
-
-
 # Configuración del Hardware
 HARDWARE_CONFIG = {
     'device': 'mps',  # Opciones: 'mps' para Mac Silicon, 'cuda' para GPU NVIDIA, 'cpu' para CPU
@@ -8,7 +6,7 @@ HARDWARE_CONFIG = {
 
 # Configuración del Modelo
 MODEL_CONFIG = {
-    'model_name': 'unet4',  # Opciones: 'unet3', 'unet4', 'last12'
+    'model_name': 'last12',  # Opciones: 'unet3', 'unet4', 'last12'
     'input_frames': 12,     # Número de frames de entrada
     'output_frames': 6,     # Número de frames de salida
     'initial_filters': 48,  # Número de filtros iniciales en UNet Original 48
@@ -52,7 +50,6 @@ METRICS_CONFIG = {
 LOGGING_CONFIG = {
     'save_dir': './saved_models',
     'log_dir': './logs',
-    'model_name': 'UNet3',
     'save_top_k': 2,
     'log_every_n_steps': 10,
 }
