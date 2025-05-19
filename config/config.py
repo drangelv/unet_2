@@ -8,7 +8,7 @@ HARDWARE_CONFIG = {
 
 # Configuración del Modelo
 MODEL_CONFIG = {
-    'model_name': 'unet3',  # Opciones: 'unet3', 'unet4', 'last12'
+    'model_name': 'unet4',  # Opciones: 'unet3', 'unet4', 'last12'
     'input_frames': 12,     # Número de frames de entrada
     'output_frames': 6,     # Número de frames de salida
     'initial_filters': 48,  # Número de filtros iniciales en UNet Original 48
