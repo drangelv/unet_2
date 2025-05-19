@@ -1,8 +1,4 @@
-"""
-Config# Configuración del Modelo
-MODEL_CONFIG = {
-    'model_name': 'unet3',  # Opciones: 'unet3', 'last12'ción del entorno para el proyecto UNet de predicción de heatmaps
-"""
+
 
 # Configuración del Hardware
 HARDWARE_CONFIG = {

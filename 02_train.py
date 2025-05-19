@@ -16,6 +16,7 @@ sys.path.append('.')
 from config.config import (MODEL_CONFIG, TRAINING_CONFIG, DATA_CONFIG, 
                          METRICS_CONFIG, HARDWARE_CONFIG, LOGGING_CONFIG)
 from src.models.unet3 import UNet3
+from src.models.unet4 import UNet4
 from src.models.last12 import Last12
 from src.data.trusted_dataset import TrustedHeatmapDataModule
 from src.visualization.visualizer import visualize_sample, visualize_prediction
@@ -27,6 +28,12 @@ def get_model(model_name):
     """Retorna el modelo según el nombre especificado"""
     if model_name == "unet3":
         return UNet3(
+            n_channels=MODEL_CONFIG['input_frames'],
+            n_classes=MODEL_CONFIG['output_frames'],
+            bilinear=MODEL_CONFIG['bilinear']
+        )
+    elif model_name == "unet4":
+        return UNet4(
             n_channels=MODEL_CONFIG['input_frames'],
             n_classes=MODEL_CONFIG['output_frames'],
             bilinear=MODEL_CONFIG['bilinear']
