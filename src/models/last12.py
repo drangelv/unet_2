@@ -4,6 +4,10 @@ Modelo que usa el último frame de entrada como predicción
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
+import os
+import h5py
+from datetime import datetime
+from config.config import LOGGING_CONFIG
 
 class Last12(pl.LightningModule):
     """
@@ -15,7 +19,13 @@ class Last12(pl.LightningModule):
         self.n_channels = n_channels
         self.n_outputs = n_outputs
         self.save_hyperparameters()
-    
+        
+        # Agregar listas para almacenar predicciones y valores reales
+        self.test_predictions = []
+        self.test_targets = []
+        self.test_inputs = []
+        self.test_step_outputs = []
+        
     def forward(self, x):
         # Tomar el último frame y repetirlo n_outputs veces
         last_frame = x[:, -1:, :, :]  # Shape: (batch, 1, height, width)
@@ -59,7 +69,11 @@ class Last12(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         x, y, _ = batch  # Ignorar timestamps
         y_hat = self(x)
-        test_loss = nn.MSELoss()(y_hat, y).item()
+        
+        # Guardar predicciones, targets y inputs para H5
+        self.test_predictions.append(y_hat.cpu().detach())
+        self.test_targets.append(y.cpu().detach())
+        self.test_inputs.append(x.cpu().detach())
         
         # Calcular métricas como en validation
         y_cpu = y.cpu()
@@ -71,14 +85,75 @@ class Last12(pl.LightningModule):
         
         metrics = self.calculate_metrics(y_binary, y_hat_binary)
         
-        # Logging
-        self.log('test_loss', test_loss)
-        self.log('test_mse', metrics['mse'])
-        self.log('test_csi', metrics['csi'])
-        self.log('test_far', metrics['far'])
-        self.log('test_hss', metrics['hss'])
+        # Guardar métricas
+        self.test_step_outputs.append(metrics)
         
-        return test_loss
+        # Logging
+        for name, value in metrics.items():
+            self.log(f'test_{name}', value.item() if isinstance(value, torch.Tensor) else value)
+        
+        return metrics
+
+    def on_test_epoch_end(self):
+        if not self.test_step_outputs:
+            return
+            
+        # Calcular promedios de métricas
+        avg_metrics = {}
+        for metric in self.test_step_outputs[0].keys():
+            values = [x[metric] for x in self.test_step_outputs]
+            avg_metrics[metric] = sum(values) / len(values)
+            
+        # Log métricas finales
+        for name, value in avg_metrics.items():
+            value_float = value.item() if isinstance(value, torch.Tensor) else value
+            self.log(f'test_{name}', value_float)
+        
+        # Crear archivo H5 con predicciones
+        try:
+            # Concatenar todos los batches
+            all_predictions = torch.cat(self.test_predictions, dim=0).numpy()
+            all_targets = torch.cat(self.test_targets, dim=0).numpy()
+            all_inputs = torch.cat(self.test_inputs, dim=0).numpy()
+            
+            # Escalar las predicciones de 0-1 a 0-100
+            all_predictions = all_predictions * 100.0
+            
+            # Crear directorio de logs si no existe
+            model_log_dir = os.path.join(LOGGING_CONFIG['log_dir'], 'last12')
+            os.makedirs(model_log_dir, exist_ok=True)
+            
+            # Guardar en archivo H5 sin timestamp
+            h5_path = os.path.join(model_log_dir, 'test_results.h5')
+            
+            with h5py.File(h5_path, 'w') as f:
+                # Guardar datos
+                f.create_dataset('predictions', data=all_predictions)
+                f.create_dataset('targets', data=all_targets)
+                f.create_dataset('inputs', data=all_inputs)
+                
+                # Guardar metadatos
+                f.attrs['input_frames'] = self.n_channels
+                f.attrs['output_frames'] = self.n_outputs
+                f.attrs['timestamp'] = datetime.now().strftime('%Y%m%d_%H%M%S')
+                f.attrs['model_type'] = 'last12'
+                
+                # Guardar métricas
+                for name, value in avg_metrics.items():
+                    if isinstance(value, torch.Tensor):
+                        value = value.item()
+                    f.attrs[f'metric_{name}'] = value
+            
+            print(f"\nResultados de test guardados en: {h5_path}")
+            
+        except Exception as e:
+            print(f"Error al guardar resultados del test: {str(e)}")
+        finally:
+            # Limpiar memoria
+            self.test_step_outputs.clear()
+            self.test_predictions.clear()
+            self.test_targets.clear()
+            self.test_inputs.clear()
     
     def configure_optimizers(self):
         # No hay parámetros para optimizar en este modelo

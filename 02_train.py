@@ -143,11 +143,28 @@ def main():
     # Cargar modelo existente o crear nuevo
     if args.load_model:
         print(f"\nCargando modelo desde: {args.load_model}")
-        model = UNet3.load_from_checkpoint(args.load_model)
+        # Determinar el tipo de modelo basado en el nombre del archivo
+        if 'unet3' in args.load_model.lower():
+            model = UNet3.load_from_checkpoint(args.load_model)
+        elif 'unet4' in args.load_model.lower():
+            model = UNet4.load_from_checkpoint(args.load_model)
+        elif 'last12' in args.load_model.lower():
+            model = Last12.load_from_checkpoint(args.load_model)
+        else:
+            raise ValueError("No se pudo determinar el tipo de modelo desde el nombre del archivo")
         
-        # Realizar predicciones
+        # Configurar trainer para test
+        trainer = pl.Trainer(
+            accelerator=HARDWARE_CONFIG['device'],
+            devices=1
+        )
+        
+        # Realizar test y predicciones
         data_module.setup()
-        print("\nGenerando predicciones:")
+        trainer.test(model, datamodule=data_module)
+        
+        # También generar visualizaciones
+        print("\nGenerando visualizaciones:")
         for i in range(5):
             visualize_prediction(
                 model, 

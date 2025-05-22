@@ -5,12 +5,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
+import h5py
+import os
+from datetime import datetime
 
 import sys
 sys.path.append('.')
 
 from src.metrics.metrics import calculate_metrics
-from config.config import MODEL_CONFIG, METRICS_CONFIG, TRAINING_CONFIG
+from config.config import MODEL_CONFIG, METRICS_CONFIG, TRAINING_CONFIG, LOGGING_CONFIG
 
 # Verificar configuración de frames
 assert MODEL_CONFIG['input_frames'] > 0, "El número de frames de entrada debe ser mayor que 0"
@@ -138,6 +141,11 @@ class UNet4(pl.LightningModule):
         params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         print(f"UNet4 creada con {params:,} parámetros entrenables")
 
+        # Agregar listas para almacenar predicciones y valores reales
+        self.test_predictions = []
+        self.test_targets = []
+        self.test_inputs = []
+
     def forward(self, x):
         x1 = self.inc(x)
         x2 = self.down1(x1)
@@ -209,13 +217,19 @@ class UNet4(pl.LightningModule):
         self.validation_step_outputs.clear()
         
     def test_step(self, batch, batch_idx):
-        x, y, _ = batch
+        x, y, timestamps = batch
         y_hat = self(x)
         
         # Asegurar que todo esté en el mismo dispositivo
         y_hat = y_hat.to(self.device)
         y = y.to(self.device)
         
+        # Guardar predicciones, targets y timestamps para H5
+        self.test_predictions.append(y_hat.cpu().detach())
+        self.test_targets.append(y.cpu().detach())
+        self.test_inputs.append(x.cpu().detach())
+        
+        # Calcular métricas
         metrics = calculate_metrics(y_hat, y, METRICS_CONFIG['threshold'])
         self.test_step_outputs.append(metrics)
         
@@ -229,7 +243,7 @@ class UNet4(pl.LightningModule):
         if not self.test_step_outputs:
             return
             
-        # Calcular promedios
+        # Calcular promedios de métricas
         avg_metrics = {}
         for metric in self.test_step_outputs[0].keys():
             values = [x[metric] for x in self.test_step_outputs]
@@ -237,11 +251,54 @@ class UNet4(pl.LightningModule):
             
         # Log métricas finales
         for name, value in avg_metrics.items():
-            # Convertir a float para logging
             value_float = value.item() if isinstance(value, torch.Tensor) else value
             self.log(f'test_{name}', value_float)
+        
+        # Crear archivo H5 con predicciones
+        try:
+            # Concatenar todos los batches
+            all_predictions = torch.cat(self.test_predictions, dim=0).numpy()
+            all_targets = torch.cat(self.test_targets, dim=0).numpy()
+            all_inputs = torch.cat(self.test_inputs, dim=0).numpy()
             
-        self.test_step_outputs.clear()
+            # Escalar las predicciones de 0-1 a 0-100
+            all_predictions = all_predictions * 100.0
+            
+            # Crear directorio de logs si no existe
+            model_log_dir = os.path.join(LOGGING_CONFIG['log_dir'], 'unet4')
+            os.makedirs(model_log_dir, exist_ok=True)
+            
+            # Guardar en archivo H5 sin timestamp
+            h5_path = os.path.join(model_log_dir, 'test_results.h5')
+            
+            with h5py.File(h5_path, 'w') as f:
+                # Guardar datos
+                f.create_dataset('predictions', data=all_predictions)
+                f.create_dataset('targets', data=all_targets)
+                f.create_dataset('inputs', data=all_inputs)
+                
+                # Guardar metadatos
+                f.attrs['input_frames'] = self.n_channels
+                f.attrs['output_frames'] = self.n_classes
+                f.attrs['timestamp'] = datetime.now().strftime('%Y/%m/%d %H:%M')
+                f.attrs['model_type'] = 'unet4'
+                
+                # Guardar métricas
+                for name, value in avg_metrics.items():
+                    if isinstance(value, torch.Tensor):
+                        value = value.item()
+                    f.attrs[f'metric_{name}'] = value
+            
+            print(f"\nResultados de test guardados en: {h5_path}")
+            
+        except Exception as e:
+            print(f"Error al guardar resultados del test: {str(e)}")
+        finally:
+            # Limpiar memoria
+            self.test_step_outputs.clear()
+            self.test_predictions.clear()
+            self.test_targets.clear()
+            self.test_inputs.clear()
 
     def configure_optimizers(self):
         """Configura el optimizador para el entrenamiento"""
