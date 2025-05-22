@@ -8,6 +8,7 @@ import pytorch_lightning as pl
 import h5py
 import os
 from datetime import datetime
+import numpy as np
 
 import sys
 sys.path.append('.')
@@ -145,6 +146,7 @@ class UNet4(pl.LightningModule):
         self.test_predictions = []
         self.test_targets = []
         self.test_inputs = []
+        self.test_timestamps = []  # Nueva lista para timestamps
 
     def forward(self, x):
         x1 = self.inc(x)
@@ -217,27 +219,28 @@ class UNet4(pl.LightningModule):
         self.validation_step_outputs.clear()
         
     def test_step(self, batch, batch_idx):
-        x, y, timestamps = batch
+        """Test step"""
+        x, y, timestamps = batch  # Ahora también recibimos los timestamps
         y_hat = self(x)
         
-        # Asegurar que todo esté en el mismo dispositivo
-        y_hat = y_hat.to(self.device)
-        y = y.to(self.device)
-        
-        # Guardar predicciones, targets y timestamps para H5
-        self.test_predictions.append(y_hat.cpu().detach())
-        self.test_targets.append(y.cpu().detach())
-        self.test_inputs.append(x.cpu().detach())
-        
-        # Calcular métricas
+        # Calcular métricas usando la función importada
         metrics = calculate_metrics(y_hat, y, METRICS_CONFIG['threshold'])
-        self.test_step_outputs.append(metrics)
         
-        # Log métricas individuales
-        for name, value in metrics.items():
-            self.log(f'test_{name}', value, on_step=False, on_epoch=True)
-            
+        # Almacenar resultados para análisis posterior
+        self.test_predictions.append(y_hat.cpu())
+        self.test_targets.append(y.cpu())
+        self.test_inputs.append(x.cpu())
+        self.test_timestamps.extend(timestamps)  # Guardamos los timestamps
+        
         return metrics
+
+    def on_test_epoch_start(self):
+        """Inicializar listas para almacenar resultados"""
+        self.test_step_outputs = []
+        self.test_predictions = []
+        self.test_targets = []
+        self.test_inputs = []
+        self.test_timestamps = []  # Nueva lista para timestamps
 
     def on_test_epoch_end(self):
         if not self.test_step_outputs:
@@ -260,6 +263,7 @@ class UNet4(pl.LightningModule):
             all_predictions = torch.cat(self.test_predictions, dim=0).numpy()
             all_targets = torch.cat(self.test_targets, dim=0).numpy()
             all_inputs = torch.cat(self.test_inputs, dim=0).numpy()
+            all_timestamps = np.array(self.test_timestamps, dtype='S26')  # Convertir timestamps a bytes
             
             # Escalar las predicciones de 0-1 a 0-100
             all_predictions = all_predictions * 100.0
@@ -268,19 +272,27 @@ class UNet4(pl.LightningModule):
             model_log_dir = os.path.join(LOGGING_CONFIG['log_dir'], 'unet4')
             os.makedirs(model_log_dir, exist_ok=True)
             
-            # Guardar en archivo H5 sin timestamp
+            # Guardar en archivo H5
             h5_path = os.path.join(model_log_dir, 'test_results.h5')
             
             with h5py.File(h5_path, 'w') as f:
-                # Guardar datos
-                f.create_dataset('predictions', data=all_predictions)
-                f.create_dataset('targets', data=all_targets)
-                f.create_dataset('inputs', data=all_inputs)
+                # Guardar datos con sus timestamps asociados
+                inputs_group = f.create_group('inputs')
+                inputs_group.create_dataset('data', data=all_inputs)
+                inputs_group.create_dataset('timestamps', data=all_timestamps[:12])  # primeros 12 timestamps
+                
+                targets_group = f.create_group('targets')
+                targets_group.create_dataset('data', data=all_targets)
+                targets_group.create_dataset('timestamps', data=all_timestamps[12:18])  # siguientes 6 timestamps
+                
+                predictions_group = f.create_group('predictions')
+                predictions_group.create_dataset('data', data=all_predictions)
+                predictions_group.create_dataset('timestamps', data=all_timestamps[12:18])  # mismos timestamps que targets
                 
                 # Guardar metadatos
                 f.attrs['input_frames'] = self.n_channels
                 f.attrs['output_frames'] = self.n_classes
-                f.attrs['timestamp'] = datetime.now().strftime('%Y/%m/%d %H:%M')
+                f.attrs['timestamp'] = datetime.now().strftime('%Y%m%d_%H%M%S')
                 f.attrs['model_type'] = 'unet4'
                 
                 # Guardar métricas
@@ -299,6 +311,7 @@ class UNet4(pl.LightningModule):
             self.test_predictions.clear()
             self.test_targets.clear()
             self.test_inputs.clear()
+            self.test_timestamps.clear()
 
     def configure_optimizers(self):
         """Configura el optimizador para el entrenamiento"""
