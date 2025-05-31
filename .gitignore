@@ -75,7 +75,8 @@ venv.bak/
 local_settings.py
 
 # Dataset and model files
-inputs/
+inputs/*
+!inputs/.gitkeep
 *.h5
 *.pkl
 *.pth
