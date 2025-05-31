@@ -116,7 +116,7 @@ class Last12(pl.LightningModule):
             all_timestamps = np.array(self.test_timestamps, dtype='S26')  # Convertir timestamps a bytes
             
             # Escalar las predicciones de 0-1 a 0-100
-            all_predictions = all_predictions * 100.0
+            #all_predictions = all_predictions * 100.0
             
             # Crear directorio de logs si no existe
             model_log_dir = os.path.join(LOGGING_CONFIG['log_dir'], 'last12')

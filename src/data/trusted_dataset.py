@@ -71,7 +71,7 @@ class TrustedHeatmapDataset(Dataset):
 
         # Normalización
         if self.normalize:
-            input_tensor = input_tensor / 100.0
+            input_tensor = input_tensor/ 100.0
             target_tensor = target_tensor / 100.0
 
         # Transformaciones
