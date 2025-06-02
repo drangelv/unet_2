@@ -8,7 +8,7 @@ HARDWARE_CONFIG = {
 MODEL_CONFIG = {
     #'model_name': 'unet4',  # Opciones: 'unet3', 'unet4', 'last12'
     #'model_name': 'unet3',
-    'model_name': 'unet3',
+    'model_name': 'unet4',
     'input_frames': 12,     # Número de frames de entrada
     'output_frames': 6,     # Número de frames de salida
     'initial_filters': 48,  # Número de filtros iniciales en UNet Original 48
@@ -17,11 +17,11 @@ MODEL_CONFIG = {
 
 # Configuración de Entrenamiento
 TRAINING_CONFIG = {
-    'batch_size': 2,
-    'epochs': 1,
+    'batch_size': 6,
+    'epochs': 200,
     'learning_rate': 1e-3,
     'weight_decay': 1e-4,
-    'early_stopping_patience': 8,
+    'early_stopping_patience': 10,
     'gradient_clip_val': 0.5,
     'accumulate_grad_batches': 1,
 }
@@ -41,10 +41,10 @@ METRICS_CONFIG = {
     'loss_function': 'mse',  # Opciones: 'mse', 'mae', 'huber'
     'threshold': 0.0,        # Umbral para binarización en métricas de clasificación
     'metrics': [
-        'mse',              # Error cuadrático medio
-        'csi',              # Critical Success Index
-        'far',              # False Alarm Rate
-        'hss',              # Heidke Skill Score
+        'mse'#,              # Error cuadrático medio
+        #'csi',              # Critical Success Index
+        #'far',              # False Alarm Rate
+        #'hss',              # Heidke Skill Score
     ]
 }
 
