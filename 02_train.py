@@ -101,9 +101,10 @@ def main():
         MODEL_CONFIG['output_frames'] = args.output_frames
     if args.dataset is not None:
         DATA_CONFIG['trusted_data_path'] = args.dataset
-    elif args.input_frames is not None or args.output_frames is not None:
-        # Si se cambió el número de frames pero no se especificó dataset, ajustar la ruta
-        DATA_CONFIG['trusted_data_path'] = f"inputs/data_trusted_{MODEL_CONFIG['input_frames']}x{MODEL_CONFIG['output_frames']}.h5"
+    # Comentado: El dataset base contiene 6 frames y el código ya maneja extraer solo los necesarios
+    # elif args.input_frames is not None or args.output_frames is not None:
+    #     # Si se cambió el número de frames pero no se especificó dataset, ajustar la ruta
+    #     DATA_CONFIG['trusted_data_path'] = f"inputs/data_trusted_{MODEL_CONFIG['input_frames']}x{MODEL_CONFIG['output_frames']}.h5"
 
     # Configurar hardware
     device = setup_hardware()

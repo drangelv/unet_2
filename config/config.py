@@ -8,9 +8,9 @@ HARDWARE_CONFIG = {
 MODEL_CONFIG = {
     #'model_name': 'unet4',  # Opciones: 'unet3', 'unet4', 'last12'
     #'model_name': 'unet3',
-    'model_name': 'unet4',
+    'model_name': 'unet3',
     'input_frames': 12,     # Número de frames de entrada
-    'output_frames': 6,     # Número de frames de salida
+    'output_frames': 1,     # Número de frames de salida (de los 6 disponibles)
     'initial_filters': 48,  # Número de filtros iniciales en UNet Original 48
     'bilinear': True      # Usar interpolación bilinear en upsampling
 }
@@ -19,9 +19,9 @@ MODEL_CONFIG = {
 TRAINING_CONFIG = {
     'batch_size': 6,
     'epochs': 200,
-    'learning_rate': 1e-3,
+    'learning_rate': 1e-4,
     'weight_decay': 1e-4,
-    'early_stopping_patience': 10,
+    'early_stopping_patience': 30,
     'gradient_clip_val': 0.5,
     'accumulate_grad_batches': 1,
 }
@@ -29,7 +29,7 @@ TRAINING_CONFIG = {
 # Configuración de Datos
 DATA_CONFIG = {
     'data_path': "inputs/combined_data_final.h5",  # Dataset crudo
-    'trusted_data_path': "inputs/data_trusted_12x6.h5",  # Dataset procesado
+    'trusted_data_path': "inputs/data_trusted_12x6.h5",  # Dataset procesado (usa solo primeros frames según output_frames)
     'train_split': 0.7,
     'val_split': 0.15,
     'test_split': 0.15,

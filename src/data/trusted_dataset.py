@@ -11,6 +11,11 @@ from datetime import datetime
 from .split_registry import update_split_info, DATA_SPLIT_INFO
 from sklearn.model_selection import train_test_split
 
+# Importar configuración para obtener output_frames deseado
+import sys
+sys.path.append('.')
+from config.config import MODEL_CONFIG
+
 class TrustedHeatmapDataset(Dataset):
     """Dataset para cargar secuencias desde el dataset trusted"""
     
@@ -32,12 +37,15 @@ class TrustedHeatmapDataset(Dataset):
         # Abrir archivo para obtener metadatos
         with h5py.File(self.file_path, "r") as h5_file:
             self.input_frames = h5_file.attrs['input_frames']
-            self.output_frames = h5_file.attrs['output_frames']
+            self.dataset_output_frames = h5_file.attrs['output_frames']  # Frames disponibles en el dataset
+            # Usar los frames especificados en la configuración, limitados por los disponibles
+            self.output_frames = min(MODEL_CONFIG['output_frames'], self.dataset_output_frames)
             self.n_sequences = len(h5_file['inputs'])
         
         # Usar índices específicos o todos
         self.valid_indices = indices if indices is not None else list(range(self.n_sequences))
         print(f"Dataset {subset} creado con {len(self.valid_indices)} secuencias")
+        print(f"Usando {self.output_frames} frames de salida de {self.dataset_output_frames} disponibles")
 
     def __len__(self):
         return len(self.valid_indices)
@@ -62,11 +70,14 @@ class TrustedHeatmapDataset(Dataset):
             
             # Cargar frames
             input_tensor = torch.tensor(inputs_group[seq_name][:], dtype=torch.float32)
-            target_tensor = torch.tensor(h5_file['targets'][seq_name][:], dtype=torch.float32)
+            # Solo cargar los primeros output_frames de los targets disponibles
+            all_targets = torch.tensor(h5_file['targets'][seq_name][:], dtype=torch.float32)
+            target_tensor = all_targets[:self.output_frames]  # Slice los primeros output_frames
             
-            # Cargar timestamps
+            # Cargar timestamps - ajustar también para los targets usados
             input_timestamps = [ts.decode() for ts in h5_file['timestamps'][f"{seq_name}_input"][:]]
-            target_timestamps = [ts.decode() for ts in h5_file['timestamps'][f"{seq_name}_target"][:]]
+            all_target_timestamps = [ts.decode() for ts in h5_file['timestamps'][f"{seq_name}_target"][:]]
+            target_timestamps = all_target_timestamps[:self.output_frames]  # Solo los timestamps correspondientes
             timestamps = input_timestamps + target_timestamps
 
         # Normalización
@@ -97,8 +108,11 @@ class TrustedHeatmapDataModule(pl.LightningDataModule):
         # Verificar y cargar metadatos
         with h5py.File(self.data_path, "r") as h5_file:
             self.input_frames = h5_file.attrs['input_frames']
-            self.output_frames = h5_file.attrs['output_frames']
+            self.dataset_output_frames = h5_file.attrs['output_frames']
+            # Usar los frames especificados en la configuración
+            self.output_frames = min(MODEL_CONFIG['output_frames'], self.dataset_output_frames)
         print(f"DataModule configurado para secuencias {self.input_frames}x{self.output_frames}")
+        print(f"(usando {self.output_frames} de {self.dataset_output_frames} frames disponibles)")
 
     def prepare_data(self):
         """Verifica que el archivo de datos existe"""
