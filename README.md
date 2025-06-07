@@ -6,6 +6,7 @@ Este proyecto implementa un modelo UNet3 para la predicción de heatmaps, optimi
 
 ## 🚀 Características
 - Soporte para múltiples plataformas (NVIDIA CUDA, Apple Silicon MPS, CPU)
+- **Control flexible de frames de predicción (1-6 frames)**
 - Métricas avanzadas (CSI, FAR, HSS, MSE)
 - Visualización de predicciones
 - Cross-validation
@@ -89,6 +90,11 @@ Una vez creado el dataset trusted, puedes entrenar el modelo:
 # Usando configuración por defecto (desde config.py)
 python 02_train.py
 
+# Control flexible de frames de predicción (NUEVO)
+python 02_train.py --output-frames 1   # Predecir solo 1 frame
+python 02_train.py --output-frames 3   # Predecir 3 frames consecutivos  
+python 02_train.py --output-frames 6   # Predecir todos los 6 frames
+
 # Cambiar número de frames en tiempo de ejecución
 python 02_train.py --input-frames 24 --output-frames 12
 
@@ -101,6 +107,8 @@ python 02_train.py --visualize_only
 # Cargar modelo existente para evaluación
 python 02_train.py --load_model path/to/model.ckpt
 ```
+
+> **💡 Nuevo:** El proyecto ahora permite controlar dinámicamente cuántos frames predecir (1-6) sin necesidad de crear datasets separados. Ver [FLEXIBLE_FRAMES.md](FLEXIBLE_FRAMES.md) para más detalles.
 
 ### Testing Interactivo
 Usar el notebook `notebooks/model_testing.ipynb` para:
