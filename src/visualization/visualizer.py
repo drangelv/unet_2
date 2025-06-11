@@ -176,20 +176,31 @@ def visualize_prediction(model, dataset, index, save_dir="predicciones", show=Fa
     fig.add_artist(plt.Line2D([0.05, 0.90], [0.51, 0.51], color='white', linestyle='--', transform=fig.transFigure))
     fig.add_artist(plt.Line2D([0.05, 0.90], [0.26, 0.26], color='white', linestyle='--', transform=fig.transFigure))
     
-    # Mostrar frames de ground truth
-    for i in range(6):
+    # Mostrar frames de ground truth (dinámico según número disponible)
+    n_output_frames = target.shape[0]
+    for i in range(n_output_frames):
         ax = fig.add_subplot(gs[2, i])
         im = ax.imshow(target[i].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
         draw_central_rectangle(ax, target[i].numpy())
         ax.set_title(f'Ground Truth {i+1}\n{format_timestamp(timestamps[12+i])}')
         ax.axis('off')
     
-    # Mostrar frames de predicción
-    for i in range(6):
+    # Llenar las columnas restantes con espacios vacíos si hay menos de 6 frames
+    for i in range(n_output_frames, 6):
+        ax = fig.add_subplot(gs[2, i])
+        ax.axis('off')
+    
+    # Mostrar frames de predicción (dinámico según número disponible)
+    for i in range(n_output_frames):
         ax = fig.add_subplot(gs[3, i])
         im = ax.imshow(prediction[i].numpy(), cmap=custom_cmap, vmin=0, vmax=100)
         draw_central_rectangle(ax, prediction[i].numpy())
         ax.set_title(f'Prediction {i+1}\n{format_timestamp(timestamps[12+i])}')
+        ax.axis('off')
+    
+    # Llenar las columnas restantes con espacios vacíos si hay menos de 6 frames
+    for i in range(n_output_frames, 6):
+        ax = fig.add_subplot(gs[3, i])
         ax.axis('off')
     
     # Añadir colorbar en la última columna del GridSpec

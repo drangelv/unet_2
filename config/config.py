@@ -8,7 +8,7 @@ HARDWARE_CONFIG = {
 MODEL_CONFIG = {
     #'model_name': 'unet4',  # Opciones: 'unet3', 'unet4', 'last12'
     #'model_name': 'unet3',
-    'model_name': 'unet3',
+    'model_name': 'last12',
     'input_frames': 12,     # Número de frames de entrada
     'output_frames': 1,     # Número de frames de salida (de los 6 disponibles)
     'initial_filters': 48,  # Número de filtros iniciales en UNet Original 48
@@ -18,7 +18,7 @@ MODEL_CONFIG = {
 # Configuración de Entrenamiento
 TRAINING_CONFIG = {
     'batch_size': 6,
-    'epochs': 200,
+    'epochs': 2,################################
     'learning_rate': 1e-4,
     'weight_decay': 1e-4,
     'early_stopping_patience': 30,
